@@ -1,4 +1,5 @@
 import { namedTypes } from 'ast-types'
+import { ExpressionKind } from 'ast-types/gen/kinds'
 import core, { API, Collection, FileInfo } from 'jscodeshift'
 import path from 'path'
 
@@ -28,6 +29,10 @@ function removeDefunctCalls(
       },
     })
     .remove()
+}
+
+function isRelativeImport(path: string): boolean {
+  return path.startsWith('./') || path.startsWith('../')
 }
 
 function transformMocks(
@@ -84,26 +89,35 @@ function transformMocks(
           )
           return false
         }
+
+        const mockPathArg = p.value.arguments[0] as namedTypes.Literal
+        const mockPathArgValue = mockPathArg.value as string
+        if (maybeSubjectPath === undefined && isRelativeImport(mockPathArgValue)) {
+          logWarning(
+            'Cannot resolve mockery mock path because test subject module path could not be found',
+            p
+          )
+          return false
+        }
+
         return true
       })
-      .forEach((p) => {
+      .replaceWith((p) => {
         // if there are mocks with relative paths, we need to rebase them to be relative to test module,
         // because mockery uses relative paths as they appear in test subjest module
         const mockPathArg = p.value.arguments[0] as namedTypes.Literal
-        const mockPathArgValue = mockPathArg.value as string
-        if (mockPathArgValue.startsWith('./') || mockPathArgValue.startsWith('../')) {
-          if (maybeSubjectPath === undefined) {
-            logWarning(
-              'Cannot resolve mockery mock path because test subject module path could not be found',
-              p
-            )
-            return
-          }
-          mockPathArg.value = path.join(path.dirname(maybeSubjectPath), mockPathArgValue)
+        let mockPath = mockPathArg.value as string
+        if (isRelativeImport(mockPath)) {
+          mockPath = path.join(path.dirname(maybeSubjectPath), mockPath)
         }
-        const callee = p.node.callee as namedTypes.MemberExpression
-        ;(callee.property as namedTypes.Identifier).name = 'mock'
-        ;(callee.object as namedTypes.Identifier).name = 'jest'
+
+        return j.callExpression(
+          j.memberExpression(j.identifier('jest'), j.identifier('mock')),
+          [
+            j.literal(mockPath),
+            j.arrowFunctionExpression([], p.value.arguments[1] as ExpressionKind),
+          ]
+        )
       })
       .paths()
       .map((p) => (p.value.arguments[0] as namedTypes.Literal).value as string)

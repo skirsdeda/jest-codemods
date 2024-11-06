@@ -77,8 +77,8 @@ test('mockery => jest basic', () => {
                 someFunc: someStub,
             };
 
-            jest.mock('non-relative-mod', {})
-            jest.mock('../../../../src/lib/services/some-module', someModuleMock)
+            jest.mock('non-relative-mod', () => ({}))
+            jest.mock('../../../../src/lib/services/some-module', () => someModuleMock)
 
             subject = require('../../../../src/handlers/api/do-something')
         });
