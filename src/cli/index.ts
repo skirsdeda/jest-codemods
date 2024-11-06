@@ -58,6 +58,7 @@ const TRANSFORMER_EXPECT_1 = 'expect'
 const TRANSFORMER_JASMINE_GLOBALS = 'jasmine-globals'
 const TRANSFORMER_JASMINE_THIS = 'jasmine-this'
 const TRANSFORMER_MOCHA = 'mocha'
+const TRANSFORMER_MOCKERY = 'mockery'
 const TRANSFORMER_SHOULD = 'should'
 const TRANSFORMER_TAPE = 'tape'
 const TRANSFORMER_SINON = 'sinon'
@@ -69,6 +70,7 @@ const ALL_TRANSFORMERS = [
   TRANSFORMER_EXPECT_JS,
   TRANSFORMER_EXPECT_1,
   TRANSFORMER_MOCHA,
+  TRANSFORMER_MOCKERY,
   TRANSFORMER_TAPE,
   TRANSFORMER_JASMINE_THIS,
   TRANSFORMER_SINON,
@@ -106,6 +108,10 @@ const TRANSFORMER_INQUIRER_CHOICES = [
   {
     name: 'Mocha',
     value: TRANSFORMER_MOCHA,
+  },
+  {
+    name: 'Mockery',
+    value: TRANSFORMER_MOCKERY,
   },
   {
     name: 'Should.js',
