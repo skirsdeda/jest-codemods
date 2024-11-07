@@ -32,58 +32,82 @@ function expectTransformation(
   })
 }
 
-test('mockery => jest basic', () => {
+test('mockery => jest example case', () => {
   expectTransformation(
     `
     const smth = require('smth')
     const mockery = require('mockery')
 
     describe('Some module test', () => {
-        let subject
+      let subject
 
-        const someStub = jest.fn()
+      const someStub = jest.fn()
 
-        beforeEach(() => {
-            mockery.enable({ useCleanCache: true, warnOnUnregistered: false })
+      beforeEach(() => {
+        mockery.enable({ useCleanCache: true, warnOnUnregistered: false })
 
-            const someModuleMock = {
-                ...require('../../../../src/lib/services/some-module'),
-                someFunc: someStub,
-            };
+        const someModuleMock = {
+          ...require('../../../../src/lib/services/some-module'),
+          someFunc: someStub,
+        };
 
-            mockery.registerMock('non-relative-mod', {})
-            mockery.registerMock('../../lib/services/some-module', someModuleMock)
+        mockery.registerMock('non-relative-mod', {})
+        mockery.registerMock('../../lib/services/some-module', someModuleMock)
 
-            subject = require('../../../../src/handlers/api/do-something')
-        });
+        subject = require('../../../../src/handlers/api/do-something')
+      });
 
-        afterAll(() => {
-            mockery.deregisterAll()
-            mockery.disable()
-        })
+      afterAll(() => {
+        mockery.deregisterAll()
+        mockery.disable()
+      })
     })
 `,
     `
     const smth = require('smth')
 
     describe('Some module test', () => {
-        let subject
+      let subject
 
-        const someStub = jest.fn()
+      const someStub = jest.fn()
 
-        beforeEach(() => {
-            const someModuleMock = {
-                ...jest.requireActual('../../../../src/lib/services/some-module'),
-                someFunc: someStub,
-            };
+      beforeEach(() => {
+        const someModuleMock = {
+          ...jest.requireActual('../../../../src/lib/services/some-module'),
+          someFunc: someStub,
+        };
 
-            jest.mock('non-relative-mod', () => ({}))
-            jest.mock('../../../../src/lib/services/some-module', () => someModuleMock)
+        jest.mock('non-relative-mod', () => ({}))
+        jest.mock('../../../../src/lib/services/some-module', () => someModuleMock)
 
-            subject = require('../../../../src/handlers/api/do-something')
-        });
+        subject = require('../../../../src/handlers/api/do-something')
+      });
 
-        afterAll(() => {})
+      afterAll(() => {})
+    })
+`
+  )
+})
+
+test('should work when both subject, mocked module and test are in the same dir', () => {
+  expectTransformation(
+    `
+    const mockery = require('mockery')
+    let subject
+
+    beforeEach(() => {
+      mockery.registerMock('./local-mod', {})
+
+      subject = require('./subject-mod')
+    })
+`,
+    `
+    let subject
+
+    beforeEach(() => {
+      jest.mock('./local-mod', () => ({}))
+
+      subject = require('./subject-mod')
     })
 `
   )

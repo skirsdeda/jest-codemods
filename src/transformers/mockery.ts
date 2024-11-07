@@ -109,6 +109,9 @@ function transformMocks(
         let mockPath = mockPathArg.value as string
         if (isRelativeImport(mockPath)) {
           mockPath = path.join(path.dirname(maybeSubjectPath), mockPath)
+          if (!mockPath.startsWith('.')) {
+            mockPath = `./${mockPath}`
+          }
         }
 
         return j.callExpression(
