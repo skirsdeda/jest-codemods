@@ -15,6 +15,7 @@ beforeEach(() => {
 interface TransformationOptions {
   warnings?: string[]
   parser?: string
+  skipImportDetection?: boolean
 }
 
 function expectTransformation(
@@ -22,9 +23,9 @@ function expectTransformation(
   expectedOutput,
   options: TransformationOptions = {}
 ) {
-  const { warnings = [], parser } = options
+  const { warnings = [], ...pluginOptions } = options
 
-  const result = wrappedPlugin(source, { parser })
+  const result = wrappedPlugin(source, pluginOptions)
   expect(result).toBe(expectedOutput)
   expect(console.warn).toBeCalledTimes(warnings.length)
   warnings.forEach((warning, i) => {
@@ -975,6 +976,29 @@ describe.each([
           jest.useFakeTimers().setSystemTime(new Date(2015, 2, 14, 0, 0).getTime());
           jest.useFakeTimers().setSystemTime(new Date(2015, 2, 14, 0, 0).getTime())
         })
+`
+      )
+    })
+
+    it('retains other variables in compound declarations', () => {
+      expectTransformation(
+        `
+        ${sinonImport}
+        let otherVar, clock1, anotherVar;
+        beforeEach(() => {
+          clock1 = sinon.useFakeTimers()
+        })
+
+        const clock = sinon.useFakeTimers(), something = 2;
+`,
+        `
+        let otherVar, anotherVar;
+        beforeEach(() => {
+          jest.useFakeTimers()
+        })
+
+        const something = 2;
+        jest.useFakeTimers();
 `
       )
     })
