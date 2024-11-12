@@ -260,7 +260,7 @@ function transformStub(j, ast, sinonExpression, logWarning) {
         },
         object: {
           type: 'Identifier',
-          name: sinonExpression,
+          name: sinonExpression, // FIXME: this should still work if `const { stub } = require('sinon');`
         },
       },
     })
@@ -607,7 +607,12 @@ function transformStubGetCalls(j: core.JSCodeshift, ast) {
     .returns
     .returnsArg
 */
-function transformMock(j: core.JSCodeshift, ast, parser: string) {
+function transformMock(
+  j: core.JSCodeshift,
+  ast,
+  sinonExpression: string,
+  parser: string
+) {
   // stub.withArgs(111).returns('foo') => stub.mockImplementation((...args) => { if (args[0] === '111') return 'foo' })
   ast
     .find(j.CallExpression, {
@@ -639,7 +644,7 @@ function transformMock(j: core.JSCodeshift, ast, parser: string) {
 
       const isSinonMatcherArg = (arg) =>
         arg.type === 'MemberExpression' &&
-        arg.object?.object?.name === 'sinon' &&
+        arg.object?.object?.name === sinonExpression && // FIXME: should work with direct import as well
         arg.object?.property?.name === 'match'
 
       // generate conditional expression to match args used in .mockImplementation
@@ -700,14 +705,14 @@ function transformMock(j: core.JSCodeshift, ast, parser: string) {
   stub.restore() -> stub.mockRestore()
   stub.reset() -> stub.mockReset()
 */
-function transformMockResets(j, ast) {
+function transformMockResets(j, ast, sinonExpression: string) {
   ast
     .find(j.CallExpression, {
       callee: {
         type: 'MemberExpression',
         object: {
           type: 'Identifier',
-          name: 'sinon',
+          name: sinonExpression, // FIXME: should work with direct import as well
         },
         property: {
           type: 'Identifier',
@@ -741,7 +746,7 @@ function transformMockResets(j, ast) {
   sinon.assert.calledOnce(spy) -> expect(spy).toHaveBeenCalledTimes(1)
   sinon.assert.calledWith(spy, arg1, arg2) -> expect(spy).toHaveBeenCalledWith(arg1, arg2)
 */
-function transformAssert(j, ast) {
+function transformAssert(j, ast, sinonExpression: string) {
   ast
     .find(j.CallExpression, {
       type: 'CallExpression',
@@ -751,7 +756,7 @@ function transformAssert(j, ast) {
           type: 'MemberExpression',
           object: {
             type: 'Identifier',
-            name: 'sinon',
+            name: sinonExpression, // FIXME: should work with direct import as well
           },
           property: {
             type: 'Identifier',
@@ -822,14 +827,14 @@ function transformAssert(j, ast) {
   // .any. matches:
   sinon.match.[any|number|string|object|func|array] -> expect.any(type)
 */
-function transformMatch(j, ast) {
+function transformMatch(j, ast, sinonExpression: string) {
   ast
     .find(j.CallExpression, {
       callee: {
         type: 'MemberExpression',
         object: {
           type: 'Identifier',
-          name: 'sinon',
+          name: sinonExpression, // FIXME: should work with direct import as well
         },
         property: {
           type: 'Identifier',
@@ -847,7 +852,7 @@ function transformMatch(j, ast) {
       type: 'MemberExpression',
       object: {
         object: {
-          name: 'sinon',
+          name: 'sinon', // FIXME: use sinonExpression
         },
         property: {
           name: 'match',
@@ -866,14 +871,14 @@ function transformMatch(j, ast) {
     })
 }
 
-function transformMockTimers(j, ast) {
+function transformMockTimers(j, ast, sinonExpression: string) {
   // sinon.useFakeTimers() -> jest.useFakeTimers()
   // sinon.useFakeTimers(new Date(...)) -> jest.useFakeTimers().setSystemTime(new Date(...))
   ast
     .find(j.CallExpression, {
       callee: {
         object: {
-          name: 'sinon',
+          name: sinonExpression, // FIXME: should work with direct import as well
         },
         property: {
           name: 'useFakeTimers',
@@ -964,14 +969,14 @@ function transformMockTimers(j, ast) {
 
 // let stub: sinon.SinonStub -> let stub: jest.Mock
 // let spy: sinon.SinonSpy -> let spy: jest.SpyInstance
-function transformTypes(j, ast, parser) {
+function transformTypes(j, ast, sinonExpression: string, parser) {
   if (!isTypescript(parser)) return
 
   ast
     .find(j.TSTypeReference, {
       typeName: {
         left: {
-          name: 'sinon',
+          name: sinonExpression, // FIXME: should work with direct import as well
         },
         right: {
           name: 'SinonStub',
@@ -987,7 +992,7 @@ function transformTypes(j, ast, parser) {
     .find(j.TSTypeReference, {
       typeName: {
         left: {
-          name: 'sinon',
+          name: sinonExpression, // FIXME: should work with direct import
         },
         right: {
           name: 'SinonSpy',
@@ -1004,7 +1009,7 @@ export default function transformer(fileInfo: FileInfo, api: API, options) {
   const j = api.jscodeshift
   const ast = j(fileInfo.source)
 
-  const sinonExpression =
+  let sinonExpression: string | undefined =
     removeRequireAndImport(j, ast, 'sinon-sandbox') ||
     removeRequireAndImport(j, ast, 'sinon')
 
@@ -1012,22 +1017,22 @@ export default function transformer(fileInfo: FileInfo, api: API, options) {
     if (!options.skipImportDetection) {
       return fileInfo.source
     }
-    return null
+    sinonExpression = 'sinon'
   }
 
   const logWarning = (msg, node) => logger(fileInfo, msg, node)
 
   transformStub(j, ast, sinonExpression, logWarning)
   transformStubOnCalls(j, ast, options.parser)
-  transformMockTimers(j, ast)
-  transformMock(j, ast, options.parser)
-  transformMockResets(j, ast)
+  transformMockTimers(j, ast, sinonExpression)
+  transformMock(j, ast, sinonExpression, options.parser)
+  transformMockResets(j, ast, sinonExpression)
   transformCallCountAssertions(j, ast)
   transformCalledWithAssertions(j, ast)
-  transformAssert(j, ast)
-  transformMatch(j, ast)
+  transformAssert(j, ast, sinonExpression)
+  transformMatch(j, ast, sinonExpression)
   transformStubGetCalls(j, ast)
-  transformTypes(j, ast, options.parser)
+  transformTypes(j, ast, sinonExpression, options.parser)
 
   return finale(fileInfo, j, ast, options)
 }
