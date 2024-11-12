@@ -41,15 +41,29 @@ function transformMocks(
   mockeryExpression: string,
   logWarning
 ) {
-  // get non-global require calls (possibly inside beforeAll/beforeEach)
+  // get non-global imports (possibly inside beforeAll/beforeEach)
+  // const nonGlobalImports = ast
+  //   .find(j.ImportExpression, { source: { type: 'Literal' } })
+  //   .filter((p) => !p.scope.isGlobal)
+  // const nonGlobalImports = ast.filter(({ node, scope }) => {
+  //   const isSuitableRequire =
+  //     node.type === 'CallExpression' &&
+  //     node.callee.name === 'require' &&
+  //     node.arguments.length === 1 &&
+  //     (node.arguments[0].type === 'Literal' ||
+  //       node.arguments[0].type === 'StringLiteral') &&
+  //     typeof node.arguments[0].value === 'string'
+  //   const isSuitableImport =
+  //     node.type === 'ImportExpression' && node.source.type === 'Literal'
+  //   return (isSuitableRequire || isSuitableImport) && !scope.isGlobal
+  // })
   const nonGlobalRequires = ast
-    .find(j.CallExpression, {
-      callee: { name: 'require' },
-    })
+    .find(j.CallExpression, { callee: { name: 'require' } })
     .filter(
       (p) =>
         p.value.arguments.length === 1 &&
-        p.value.arguments[0].type === 'Literal' &&
+        (p.value.arguments[0].type === 'Literal' ||
+          p.value.arguments[0].type === 'StringLiteral') &&
         typeof p.value.arguments[0].value === 'string' &&
         !p.scope.isGlobal
     )
@@ -80,7 +94,8 @@ function transformMocks(
       .filter((p) => {
         if (
           p.value.arguments.length !== 2 ||
-          p.value.arguments[0].type !== 'Literal' ||
+          (p.value.arguments[0].type !== 'Literal' &&
+            p.value.arguments[0].type !== 'StringLiteral') ||
           typeof p.value.arguments[0].value !== 'string'
         ) {
           logWarning(
